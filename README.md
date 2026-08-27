@@ -103,7 +103,55 @@ The app provides a simple web interface for managing posts:
 | `PUT /posts/{id}` | Submit edit (triggers an UPDATE audit log with field diffs) |
 | `DELETE /posts/{id}` | Delete post (triggers a DELETE audit log) |
 
+---
 
+## Viewing audit logs with 3T (Studio 3T / Robo 3T)
+
+### Connecting
+
+1. Open **Studio 3T** (or Robo 3T)
+2. Click **New Connection**
+3. Set the connection details:
+   - **Name:** `audit-logging-local`
+   - **Server:** `127.0.0.1`
+   - **Port:** `27017`
+   - **Authentication:** None (for local dev)
+4. Click **Test Connection** - should show "Connection successful"
+5. Click **Save**, then **Connect**
+
+### Browsing the audit logs
+
+1. In the left sidebar, expand your connection
+2. Expand the **audit_logging** database
+3. Click the **audit_logs** collection
+4. The documents appear in the right panel - use the **Table View** tab for a spreadsheet-like layout, or **Tree View** to browse nested `event_data` fields
+
+### Useful queries in 3T's Query Editor
+
+Open the collection, click **Open Query** (or press `F5`), then paste:
+
+```js
+// All audit logs, newest first
+db.audit_logs.find({}).sort({ created_at: -1 })
+
+// Only CREATE actions
+db.audit_logs.find({ action: "CREATE" })
+
+// Only UPDATE actions
+db.audit_logs.find({ action: "UPDATE" })
+
+// Only DELETE actions
+db.audit_logs.find({ action: "DELETE" })
+
+// Logs for a specific post (by entity_id inside event_data)
+db.audit_logs.find({ "event_data.entity_id": 1 })
+
+// Logs from a specific IP
+db.audit_logs.find({ ip_address: "127.0.0.1" })
+
+// Logs in the last hour
+db.audit_logs.find({ created_at: { $gte: new Date(Date.now() - 3600000) } })
+```
 
 ---
 

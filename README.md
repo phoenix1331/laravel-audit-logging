@@ -103,10 +103,7 @@ The app provides a simple web interface for managing posts:
 | `PUT /posts/{id}` | Submit edit (triggers an UPDATE audit log with field diffs) |
 | `DELETE /posts/{id}` | Delete post (triggers a DELETE audit log) |
 
-These routes sit behind Laravel's default `web` middleware group, which enforces session-based CSRF protection - there's no `request.http` file in this repo, since a static HTTP client can't carry a fresh CSRF token for the POST/PUT/DELETE requests. Use the browser UI to exercise the full flow.
 
-<!-- Screenshot: posts list -->
-<!-- Screenshot: post detail with audit log timeline -->
 
 ---
 

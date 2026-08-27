@@ -1,5 +1,8 @@
 # Laravel Audit Logging
 
+<img width="3170" height="1730" alt="Screenshot 2026-08-27 151915" src="https://github.com/user-attachments/assets/240098f7-02d8-4226-8e54-606a8ced7d7b" />
+
+
 A transparent, observer-driven audit trail for Eloquent models, written to MongoDB while the primary application data lives in MySQL.
 
 ---
@@ -48,6 +51,9 @@ make migrate
 ```
 
 Then open **http://localhost:8000** in your browser.
+
+<img width="3176" height="1656" alt="Screenshot 2026-08-27 151845" src="https://github.com/user-attachments/assets/e5fc1bd1-b626-4db0-b2ad-2180a91e7db7" />
+
 
 | Command | Description |
 |---|---|
@@ -127,6 +133,9 @@ The app provides a simple web interface for managing posts:
 4. The documents appear in the right panel - use the **Table View** tab for a spreadsheet-like layout, or **Tree View** to browse nested `event_data` fields
 
 ### Useful queries in 3T's Query Editor
+
+<img width="3120" height="1700" alt="Screenshot 2026-08-27 151755" src="https://github.com/user-attachments/assets/7139df23-5242-4f26-8815-53cc666edfc9" />
+
 
 Open the collection, click **Open Query** (or press `F5`), then paste:
 

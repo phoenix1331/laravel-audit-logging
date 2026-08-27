@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Providers;
 
+use App\Models\Post;
+use App\Observers\AuditObserver;
 use App\Services\AuditLogger;
 use Illuminate\Support\ServiceProvider;
 
@@ -21,6 +23,6 @@ class AuditServiceProvider extends ServiceProvider
 
     public function boot(): void
     {
-        //
+        Post::observe(AuditObserver::class);
     }
 }

@@ -1,58 +1,187 @@
-<p align="center"><a href="https://laravel.com" target="_blank"><img src="https://raw.githubusercontent.com/laravel/art/master/logo-lockup/5%20SVG/2%20CMYK/1%20Full%20Color/laravel-logolockup-cmyk-red.svg" width="400" alt="Laravel Logo"></a></p>
+# Laravel Audit Logging
 
-<p align="center">
-<a href="https://github.com/laravel/framework/actions"><img src="https://github.com/laravel/framework/workflows/tests/badge.svg" alt="Build Status"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/dt/laravel/framework" alt="Total Downloads"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/v/laravel/framework" alt="Latest Stable Version"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/l/laravel/framework" alt="License"></a>
-</p>
+A transparent, observer-driven audit trail for Eloquent models, written to MongoDB while the primary application data lives in MySQL.
 
-## About Laravel
+---
 
-Laravel is a web application framework with expressive, elegant syntax. We believe development must be an enjoyable and creative experience to be truly fulfilling. Laravel takes the pain out of development by easing common tasks used in many web projects, such as:
+## What this demonstrates
 
-- [Simple, fast routing engine](https://laravel.com/docs/routing).
-- [Powerful dependency injection container](https://laravel.com/docs/container).
-- Multiple back-ends for [session](https://laravel.com/docs/session) and [cache](https://laravel.com/docs/cache) storage.
-- Expressive, intuitive [database ORM](https://laravel.com/docs/eloquent).
-- Database agnostic [schema migrations](https://laravel.com/docs/migrations).
-- [Robust background job processing](https://laravel.com/docs/queues).
-- [Real-time event broadcasting](https://laravel.com/docs/broadcasting).
+Most audit logging implementations leak into the code that doesn't care about auditing: controllers end up calling `AuditLog::create(...)` right after every `save()`, which means every new mutation path is one missed line away from a silent gap in the trail. This project takes a different approach: audit logging is wired entirely through Eloquent's model events, so **the controller has zero audit-specific code**. A model implements `AuditableInterface`, gets its observer registered once, and every `created`, `updated`, and `deleted` event on that model is captured automatically from then on, including a field-level from/to change set for updates.
 
-Laravel is accessible, powerful, and provides tools required for large, robust applications.
+The other idea worth calling out is the split datastore: relational data (the `Post` model) lives in MySQL as normal, while the audit trail itself lives in MongoDB as flexible, schemaless documents. Audit events don't have a fixed shape (a CREATE event looks nothing like an UPDATE diff), which is exactly the kind of data MongoDB's document model handles more naturally than a rigid relational table with a JSON blob column bolted on.
 
-## Learning Laravel
+Core concepts covered:
 
-Laravel has the most extensive and thorough [documentation](https://laravel.com/docs) and video tutorial library of all modern web application frameworks, making it a breeze to get started with the framework.
+- Eloquent observers as a cross-cutting concern, kept out of business logic
+- A contract-driven opt-in model (`AuditableInterface`) so any model can become auditable in three steps
+- Mixed persistence: MySQL for application data, MongoDB for the audit trail
+- Capturing request context (IP, user agent, route name, authenticated user) transparently via a bound singleton service
+- An extension point (`organisation_id` resolution) left deliberately stubbed to show where multi-tenant context would plug in
 
-In addition, [Laracasts](https://laracasts.com) contains thousands of video tutorials on a range of topics including Laravel, modern PHP, unit testing, and JavaScript. Boost your skills by digging into our comprehensive video library.
+---
 
-You can also watch bite-sized lessons with real-world projects on [Laravel Learn](https://laravel.com/learn), where you will be guided through building a Laravel application from scratch while learning PHP fundamentals.
+## Tech stack
 
-## Agentic Development
+- **Laravel 13** on PHP 8.4
+- **MySQL 8.0** for application data (`posts`)
+- **MongoDB 7.0** (`mongodb/laravel-mongodb`) for the `audit_logs` collection
+- **Docker + FrankenPHP** as the runtime, via `docker-compose.yml`
+- **Laravel Pint** for code style, enforced by a pre-commit hook
+- **osv-scanner** for dependency vulnerability scanning, also enforced by the pre-commit hook
 
-Laravel's predictable structure and conventions make it ideal for AI coding agents like Claude Code, Cursor, and GitHub Copilot. Install [Laravel Boost](https://laravel.com/docs/ai) to supercharge your AI workflow:
+---
+
+## Getting started
+
+### Prerequisites
+
+- Docker and Docker Compose
+- [`osv-scanner`](https://github.com/google/osv-scanner) installed locally (`go install github.com/google/osv-scanner/cmd/osv-scanner@latest`) - required by the pre-commit hook
+
+### Setup
 
 ```bash
-composer require laravel/boost --dev
-
-php artisan boost:install
+cp .env.example .env
+make build
+make up
+make migrate
 ```
 
-Boost provides your agent 15+ tools and skills that help agents build Laravel applications while following best practices.
+Then open **http://localhost:8000** in your browser.
 
-## Contributing
+| Command | Description |
+|---|---|
+| `make up` | Start containers in the background |
+| `make down` | Stop and remove containers |
+| `make build` | Build the app image |
+| `make shell` | Open a shell in the app container |
+| `make migrate` | Run database migrations |
+| `make seed` | Seed the database |
+| `make test` | Run the test suite |
+| `make logs` | Tail app container logs |
+| `make fresh` | Drop all tables and re-run migrations with seeding |
 
-Thank you for considering contributing to the Laravel framework! The contribution guide can be found in the [Laravel documentation](https://laravel.com/docs/contributions).
+### Ports
 
-## Code of Conduct
+Port 3306 was already in use on the host by another local MySQL instance, so this project's MySQL is exposed on a different host port. Adjust `docker-compose.yml` if any of these clash with something else already running:
 
-In order to ensure that the Laravel community is welcoming to all, please review and abide by the [Code of Conduct](https://laravel.com/docs/contributions#code-of-conduct).
+| Service | Host port | Container port |
+|---|---|---|
+| App (FrankenPHP) | 8000 | 8000 |
+| MySQL | 3307 | 3306 |
+| MongoDB | 27017 | 27017 |
 
-## Security Vulnerabilities
+---
 
-If you discover a security vulnerability within Laravel, please send an e-mail to Taylor Otwell via [taylor@laravel.com](mailto:taylor@laravel.com). All security vulnerabilities will be promptly addressed.
+## Environment variables
 
-## License
+| Key | Description | Default |
+|---|---|---|
+| `APP_URL` | Base URL of the app | `http://localhost:8000` |
+| `DB_CONNECTION` | Default database connection | `mysql` |
+| `DB_HOST` | MySQL host (Docker service name) | `mysql` |
+| `DB_PORT` | MySQL port (container-internal) | `3306` |
+| `DB_DATABASE` | MySQL database name | `audit_logging` |
+| `DB_USERNAME` | MySQL username | `root` |
+| `DB_PASSWORD` | MySQL password | *(empty)* |
+| `MONGODB_URI` | MongoDB connection string (Docker service name) | `mongodb://mongodb:27017` |
+| `MONGODB_DATABASE` | MongoDB database name | `audit_logging` |
 
-The Laravel framework is open-sourced software licensed under the [MIT license](https://opensource.org/licenses/MIT).
+---
+
+## Endpoints
+
+The app provides a simple web interface for managing posts:
+
+| URL | Action |
+|---|---|
+| `GET /posts` | List all posts |
+| `GET /posts/create` | New post form |
+| `POST /posts` | Submit new post (triggers a CREATE audit log) |
+| `GET /posts/{id}` | Show a post and its audit log timeline |
+| `GET /posts/{id}/edit` | Edit post form |
+| `PUT /posts/{id}` | Submit edit (triggers an UPDATE audit log with field diffs) |
+| `DELETE /posts/{id}` | Delete post (triggers a DELETE audit log) |
+
+These routes sit behind Laravel's default `web` middleware group, which enforces session-based CSRF protection - there's no `request.http` file in this repo, since a static HTTP client can't carry a fresh CSRF token for the POST/PUT/DELETE requests. Use the browser UI to exercise the full flow.
+
+<!-- Screenshot: posts list -->
+<!-- Screenshot: post detail with audit log timeline -->
+
+---
+
+## Architecture notes
+
+```
+Browser Form Submit
+    |
+    v
+PostController          (no audit code - completely transparent)
+    |  Post::create() / update() / delete()
+    v
+Eloquent Model           (implements AuditableInterface)
+    |  fires created / updated / deleted events
+    v
+AuditObserver            (listens to Eloquent model events)
+    |  builds event_data with from/to change set
+    v
+AuditLogger service      (extracts request context)
+    |  ip_address, user_agent, request_route, user_id
+    v
+AuditLog::create()       (MongoDB Eloquent model)
+    |
+    v
+MongoDB  ->  audit_logging.audit_logs collection
+```
+
+### Making a model auditable
+
+Three steps to add audit logging to any Eloquent model:
+
+**1. Implement `AuditableInterface`:**
+
+```php
+use App\Contracts\AuditableInterface;
+use App\Enums\AuditLogAction;
+use App\Enums\AuditLogType;
+
+class Article extends Model implements AuditableInterface
+{
+    public function getAuditType(): AuditLogType
+    {
+        return AuditLogType::ARTICLE;
+    }
+
+    public function getAuditActions(): array
+    {
+        return [
+            AuditLogAction::CREATE,
+            AuditLogAction::UPDATE,
+            AuditLogAction::DELETE,
+        ];
+        // Omit an action to disable that event, e.g. no DELETE logging
+    }
+}
+```
+
+**2. Add a case to `AuditLogType`** if the model doesn't already have one.
+
+**3. Register the observer** in `AuditServiceProvider::boot()`:
+
+```php
+public function boot(): void
+{
+    Post::observe(AuditObserver::class);
+    Article::observe(AuditObserver::class); // add this line
+}
+```
+
+No changes to the controller are needed.
+
+### Why the `organisation_id` stub
+
+`AuditLogger::resolveOrganisationId()` parses the `Origin` header for a subdomain but always returns `null`. It's left this way deliberately, this is a single-tenant demo, but the extension point is real: a multi-tenant app would resolve the subdomain to an `Organisation` and scope every audit log to it, which is exactly the kind of context that's easy to forget if audit logging isn't centralised like this.
+
+### Why the pre-commit hook matters here
+
+Every commit runs Pint (style) and osv-scanner (dependency vulnerabilities) before it's allowed through. For a project whose entire value proposition is "here's a reliable trail of what happened," it would be a bit self-defeating to ship it with unreviewed dependency vulnerabilities or inconsistent code that's harder to audit at the source level.
